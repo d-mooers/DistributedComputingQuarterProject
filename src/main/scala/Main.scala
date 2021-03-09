@@ -9,7 +9,7 @@ import scala.collection._
 import org.apache.spark
 
 object Main {
-  val INPUT_FILE = "data/test.csv"
+  val INPUT_FILE = "data/vehicles.csv"
 
   def main(args: Array[String]): Unit = {
     System.setProperty("hadoop.home.dir", "c:/winutils/")
@@ -21,21 +21,10 @@ object Main {
     
     val lineItems = sc.textFile(INPUT_FILE).flatMap(_.split("\n")).map(_.split(","));
 
-    val cleaned = lineItems.map(x => x.slice(5,8) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(_.length == 9)
+    val cleaned = lineItems.map(x => x.slice(5,7) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(_.length == 8)
 
     println(cleaned.count())
   }
-
-  val manufMap = immutable.Map("ford" -> 0,
-                              "chevrolet" -> 1,
-                              "toyota" -> 2,
-                              "jeep" -> 3,
-                              "nissan" -> 4,
-                              "honda" -> 5,
-                              "ram" -> 6,
-                              "gmc" -> 7,
-                              "dodge" -> 8,
-                              "hyundai" -> 9)
 
   val condMap = immutable.Map("new" -> 0,
                                 "like new" -> 1,
@@ -58,11 +47,11 @@ object Main {
   val transMap = immutable.Map("automatic" -> 0,
                                 "manual" -> 1)
 
-  // price, year, manuf, condition, cylinders, fuel, odom, title, trans
+  // price, year, condition, cylinders, fuel, odom, title, trans
   def clean(entry: Array[String]) : List[Double] =  {
     var retArray = mutable.MutableList[Double]()
-    for (i <- 0 to 8) {
-      if (i == 0 || i == 1 || i == 6) {
+    for (i <- 0 to 7) {
+      if (i == 0 || i == 1 || i == 5) {
         val a = try {
           entry(i).toDouble
         } catch {
@@ -76,33 +65,28 @@ object Main {
       else
         retArray = retArray :+ 0.0
     }
-    if (manufMap.contains(entry(2)))
-      retArray(2) = manufMap(entry(2))
+    if (condMap.contains(entry(2)))
+      retArray(2) = condMap(entry(2))
     else
       return List(0.0)
 
-    if (condMap.contains(entry(3)))
-      retArray(3) = condMap(entry(3))
+    if (cylindMap.contains(entry(3)))
+      retArray(3) = cylindMap(entry(3))
     else
       return List(0.0)
 
-    if (cylindMap.contains(entry(4)))
-      retArray(4) = cylindMap(entry(4))
+    if (fuelMap.contains(entry(4)))
+      retArray(4) = fuelMap(entry(4))
     else
       return List(0.0)
 
-    if (fuelMap.contains(entry(5)))
-      retArray(5) = fuelMap(entry(5))
+    if (titleMap.contains(entry(6)))
+      retArray(6) = titleMap(entry(6))
     else
       return List(0.0)
 
-    if (titleMap.contains(entry(7)))
-      retArray(7) = titleMap(entry(7))
-    else
-      return List(0.0)
-
-    if (transMap.contains(entry(8)))
-      retArray(8) = transMap(entry(8))
+    if (transMap.contains(entry(7)))
+      retArray(7) = transMap(entry(7))
     else
       return List(0.0)
 
