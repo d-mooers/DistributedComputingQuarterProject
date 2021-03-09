@@ -9,10 +9,14 @@ import scala.collection._
 import org.apache.spark
 
 object Main {
-  val INPUT_FILE = "data/test.csv"
-  val TRAIN = 0.90
-  val TEST = 0.10
-  val N = 10
+  val INPUT_FILE = "data/vehicles.csv"
+  val TRAINING_NUM = 30.0 // Number of entries to train on, or change equation in line 35 to a decimal for a percentage to train on
+  val K = 50
+  
+  var yearMin = 3000.0
+  var yearMax = 0.0
+  var odomMin = 100000.0
+  var odomMax = 0.0
 
   def main(args: Array[String]): Unit = {
     System.setProperty("hadoop.home.dir", "c:/winutils/")
@@ -24,10 +28,12 @@ object Main {
     
     val lineItems = sc.textFile(INPUT_FILE).flatMap(_.split("\n")).map(_.split(","));
 
-    val cleaned = lineItems.map(x => x.slice(5,7) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(_.length == 8).persist()
+    val cleaned = lineItems.map(x => x.slice(5,7) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(x => x.length == 8 && x(0) != 0).persist()
 
-    val training_rdd = cleaned.sample(withReplacement = false, TRAIN)
-    val test = cleaned.subtract(training_rdd).collect()
+    val normalized = cleaned.map(entry => normalize(entry))
+
+    val training_rdd = normalized.sample(withReplacement = false, 1 - (TRAINING_NUM / normalized.count())).persist()
+    val test = normalized.subtract(training_rdd).collect()
 
     val correctPrice = test.map(_.head)
     val predictedPrice = test.map(e => kNN(e.tail, training_rdd))
@@ -38,12 +44,24 @@ object Main {
   def kNN(toPredict : List[Double], vals : RDD[List[Double]]) : Double = {
     vals.map(entry => (calcDistance(toPredict, entry.tail), entry.head))
       .sortByKey(ascending = true)
-      .take(N).map({ case (_, price) => price }).sum / N
+      .take(K).map({ case (_, price) => price }).sum / K
   }
 
   def calcDistance(p1 : List[Double], p2 : List[Double]) : Double = {
     val squared = p1.zip(p2).map(z => math.pow(z._1 - z._2, 2)).sum
     math.sqrt(squared)
+  }
+
+  def normalize(entry : List[Double]) : List[Double] = {
+    var retArray = mutable.MutableList[Double](entry(0))
+    val minMaxArray = List((yearMin, yearMax), (0.0, 5.0), (0.0, 2.0), (0.0, 1.0), (odomMin, odomMax), (0.0, 2.0), (0.0, 1.0))
+
+
+    for (i <- 1 to 7) {
+      retArray = retArray :+ ((entry(i) - minMaxArray(i-1)._1) / (minMaxArray(i-1)._2 - minMaxArray(i-1)._1))
+    }
+
+    return retArray.toList
   }
 
   val condMap = immutable.Map("new" -> 0,
@@ -79,12 +97,24 @@ object Main {
         }
         if (a == "")
           return List(0.0)
-        if(i == 1 || i == 5) {
-          retArray = retArray :+ 0.0
+
+        val num = a.toString.toDouble
+        if (i == 1) {
+          if (num > yearMax)
+            yearMax = num
+          else if (num < yearMin)
+            yearMin = num
         }
-        else {
-          retArray = retArray :+ a.toString.toDouble
+
+        else if (i == 5) {
+          if (num > odomMax)
+            odomMax = num
+          else if (num < odomMin)
+            odomMin = num
         }
+        
+        retArray = retArray :+ a.toString.toDouble
+
       }
       else
         retArray = retArray :+ 0.0
