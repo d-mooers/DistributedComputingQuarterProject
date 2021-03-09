@@ -9,7 +9,10 @@ import scala.collection._
 import org.apache.spark
 
 object Main {
-  val INPUT_FILE = "data/vehicles.csv"
+  val INPUT_FILE = "data/test.csv"
+  val TRAIN = 0.90
+  val TEST = 0.10
+  val N = 10
 
   def main(args: Array[String]): Unit = {
     System.setProperty("hadoop.home.dir", "c:/winutils/")
@@ -21,9 +24,26 @@ object Main {
     
     val lineItems = sc.textFile(INPUT_FILE).flatMap(_.split("\n")).map(_.split(","));
 
-    val cleaned = lineItems.map(x => x.slice(5,7) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(_.length == 8)
+    val cleaned = lineItems.map(x => x.slice(5,7) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(_.length == 8).persist()
 
-    println(cleaned.count())
+    val training_rdd = cleaned.sample(withReplacement = false, TRAIN)
+    val test = cleaned.subtract(training_rdd).collect()
+
+    val correctPrice = test.map(_.head)
+    val predictedPrice = test.map(e => kNN(e.tail, training_rdd))
+
+    correctPrice.zip(predictedPrice).foreach(println)
+  }
+
+  def kNN(toPredict : List[Double], vals : RDD[List[Double]]) : Double = {
+    vals.map(entry => (calcDistance(toPredict, entry.tail), entry.head))
+      .sortByKey(ascending = true)
+      .take(N).map({ case (_, price) => price }).sum / N
+  }
+
+  def calcDistance(p1 : List[Double], p2 : List[Double]) : Double = {
+    val squared = p1.zip(p2).map(z => math.pow(z._1 - z._2, 2)).sum
+    math.sqrt(squared)
   }
 
   val condMap = immutable.Map("new" -> 0,
@@ -59,8 +79,12 @@ object Main {
         }
         if (a == "")
           return List(0.0)
-        
-        retArray = retArray :+ a.toString.toDouble
+        if(i == 1 || i == 5) {
+          retArray = retArray :+ 0.0
+        }
+        else {
+          retArray = retArray :+ a.toString.toDouble
+        }
       }
       else
         retArray = retArray :+ 0.0
