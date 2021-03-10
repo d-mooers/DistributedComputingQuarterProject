@@ -1,4 +1,3 @@
-package example
 import org.apache.spark.SparkContext._
 import scala.io._
 import org.apache.spark.{ SparkConf, SparkContext }
@@ -44,10 +43,10 @@ object Main {
     printf("Average Percent Error: %.2f\n", averagePctError(comparisons.toList))
   }
 
-  def kNN(toPredict : List[Double], vals : RDD[List[Double]]) : Double = {
+  def kNN(toPredict : List[Double], vals : RDD[List[Double]], nNeighbors: Int = K) : Double = {
     vals.map(entry => (calcDistance(toPredict, entry.tail), entry.head))
       .sortByKey(ascending = true)
-      .take(K).map({ case (_, price) => price }).sum / K
+      .take(nNeighbors).map({ case (_, price) => price }).sum / nNeighbors
   }
 
   def calcDistance(p1 : List[Double], p2 : List[Double]) : Double = {
