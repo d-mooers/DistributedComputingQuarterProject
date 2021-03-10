@@ -38,7 +38,10 @@ object Main {
     val correctPrice = test.map(_.head)
     val predictedPrice = test.map(e => kNN(e.tail, training_rdd))
 
-    correctPrice.zip(predictedPrice).foreach(println)
+    val comparisons = correctPrice.zip(predictedPrice)
+    comparisons.foreach(println)
+    printf("Average Error: %.2f\n", averageError(comparisons.toList))
+    printf("Average Percent Error: %.2f\n", averagePctError(comparisons.toList))
   }
 
   def kNN(toPredict : List[Double], vals : RDD[List[Double]]) : Double = {
@@ -62,6 +65,18 @@ object Main {
     }
 
     return retArray.toList
+  }
+
+  def averageError(expectedVsActual: List[(Double, Double)]): Double ={
+    val errors = expectedVsActual.map({case (exp, act) => ((exp - act).abs, 1)})
+    val sumCount = errors.reduce((totErr, nextErr) => (totErr._1 + nextErr._1, totErr._2 + nextErr._2))
+    sumCount._1 / sumCount._2
+  }
+
+  def averagePctError(expectedVsActual: List[(Double, Double)]): Double ={
+    val errors = expectedVsActual.map({case (exp, act) => ((exp - act).abs / exp, 1)})
+    val sumCount = errors.reduce((totErr, nextErr) => (totErr._1 + nextErr._1, totErr._2 + nextErr._2))
+    sumCount._1 / sumCount._2 * 100
   }
 
   val condMap = immutable.Map("new" -> 0,
