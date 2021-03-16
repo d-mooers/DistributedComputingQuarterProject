@@ -7,9 +7,9 @@ import scala.collection.mutable.HashMap
 
 object Classification {
   val INPUT_FILE = "data/test.csv"
-  val TRAINING_NUM = 30.0 // Number of entries to train on, or change equation in line 35 to a decimal for a percentage to train on
-  val K = 20
-  val numberOfWindows = 7
+  val TRAINING_NUM = 100.0 // Number of entries to train on, or change equation in line 35 to a decimal for a percentage to train on
+  val K = 3
+  val numberOfWindows = 3
 
   var yearMin = 3000.0
   var yearMax = 0.0
@@ -36,10 +36,10 @@ object Classification {
     val test = normalized.subtract(training_rdd).collect()
 
     val correctPrice = test.map(_.head.toInt)
-    val predictedPrice = test.map(e => kNN(e.tail, training_rdd))
-
-    val comparisons = correctPrice.zip(predictedPrice)
-    comparisons.foreach(println)
+    val predictedPrice = test.map(e => kNN(e.tail, training_rdd)).toList
+    metrics(sc, correctPrice.toList, predictedPrice)
+    //val comparisons = correctPrice.zip(predictedPrice)
+    //comparisons.foreach(println)
     //printf("Average Error: %.2f\n", averageError(comparisons.toList))
     //printf("Average Percent Error: %.2f\n", averagePctError(comparisons.toList))
   }
@@ -78,6 +78,25 @@ object Classification {
     }
 
     return retArray.toList
+  }
+
+  def metrics(sp: SparkContext, expected : List[Int], actual : List[Int]) : Unit = {
+    val recall = calcRecall(sp.parallelize(expected), sp.parallelize(actual))
+    val precicision = calcPrecision(expected, actual)
+    val f1 = 2 / (1 / recall + 1 / precicision)
+    System.out.println("Recall: %f\n Precision: %f\n F1 Score: %f".format(recall, precicision, f1))
+  }
+
+  def calcRecall(expected : RDD[Int], actual : RDD[Int]) : Double = {
+    val buckets = expected.countByValue()
+    val predicted = actual.countByValue()
+    val agg = buckets.zip(predicted).map(x => Math.min(x._2._2, x._1._2) / x._1._2).sum
+    agg * 1.0 / buckets.size;
+  }
+
+  def calcPrecision(expected : List[Int], actual : List[Int]) : Double = {
+    val relevant = expected.zip(actual).count(x => x._1 == x._2)
+    relevant * 1.0 / expected.size
   }
 
   def averageError(expectedVsActual: List[(Double, Double)]): Double ={
