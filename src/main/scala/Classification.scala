@@ -8,15 +8,18 @@ import scala.collection.mutable.HashMap
 object Classification {
   val INPUT_FILE = "data/test.csv"
   val TRAINING_NUM = 100.0 // Number of entries to train on, or change equation in line 35 to a decimal for a percentage to train on
-  val K = 3
-  val numberOfWindows = 3
+  val K = 50
+  val numberOfWindows = 10
+
+  val OUTLIER_FLOOR = 1000.0
+  val OUTLIER_CEILING = 200000.0
 
   var yearMin = 3000.0
   var yearMax = 0.0
   var odomMin = 100000.0
   var odomMax = 0.0
-  var priceMin = Double.MaxValue
-  var priceMax = 0.0
+  var priceMin = OUTLIER_FLOOR
+  var priceMax = OUTLIER_CEILING
 
   def main(args: Array[String]): Unit = {
     System.setProperty("hadoop.home.dir", "c:/winutils/")
@@ -28,7 +31,7 @@ object Classification {
     
     val lineItems = sc.textFile(INPUT_FILE).flatMap(_.split("\n")).map(_.split(","));
 
-    val cleaned = lineItems.map(x => x.slice(5,7) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(x => x.length == 8 && x(0) != 0).persist()
+    val cleaned = lineItems.map(x => x.slice(5,7) ++ x.slice(9, 15)).map(entry => clean(entry)).filter(x => x.length == 8 && x(0) > OUTLIER_FLOOR && x(0) < OUTLIER_CEILING).persist()
 
     val normalized = cleaned.map(entry => normalize(entry))
 
@@ -92,7 +95,7 @@ object Classification {
     val predicted = actual.countByValue()
     val agg = buckets.zip(predicted).map(x => Math.min(x._2._2, x._1._2) / x._1._2)
       .foldLeft((0, 0))((acc : (Int, Int), x : Long) => (acc._1 + x.toInt, acc._2 + 1))
-    agg._1 * 1.0 / agg._2;
+    agg._1 * 1.0 / buckets.size;
   }
 
   def calcPrecision(expected : List[Int], actual : List[Int]) : Double = {
