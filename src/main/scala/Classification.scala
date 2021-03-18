@@ -90,13 +90,22 @@ object Classification {
   def calcRecall(expected : RDD[Int], actual : RDD[Int]) : Double = {
     val buckets = expected.countByValue()
     val predicted = actual.countByValue()
-    val agg = buckets.zip(predicted).map(x => Math.min(x._2._2, x._1._2) / x._1._2).sum
-    agg * 1.0 / buckets.size;
+    val agg = buckets.zip(predicted).map(x => Math.min(x._2._2, x._1._2) / x._1._2)
+      .foldLeft((0, 0))((acc : (Int, Int), x : Long) => (acc._1 + x.toInt, acc._2 + 1))
+    agg._1 * 1.0 / agg._2;
   }
 
   def calcPrecision(expected : List[Int], actual : List[Int]) : Double = {
-    val relevant = expected.zip(actual).count(x => x._1 == x._2)
-    relevant * 1.0 / expected.size
+    val selected = mutable.MutableList.fill(numberOfWindows)(0)
+    val relevant = mutable.MutableList.fill(numberOfWindows)(0)
+    actual.zip(expected).foreach(x => {
+      if (x._1 == x._2) {
+        relevant(x._1) += 1
+      }
+      selected(x._1) += 1
+    })
+    val agg = relevant.filter(_ != 0).zip(selected).reduce((acc, x) => (acc._1 + x._1, acc._2 + x._2))
+    agg._1 * 1.0 / agg._2
   }
 
   def averageError(expectedVsActual: List[(Double, Double)]): Double ={
